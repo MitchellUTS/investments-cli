@@ -1,6 +1,5 @@
-use clap::{Parser, Subcommand};
-
-use investments_cli::objects::resource::{*};
+use clap::{Parser};
+mod commands;
 
 #[derive(Debug, Parser)]
 struct Cli {
@@ -12,98 +11,43 @@ struct Cli {
     // path: Option<std::path::PathBuf>,
 
     #[clap(subcommand)]
-    command: Option<Command>,
+    command: Option<commands::Command>,
 
     #[clap(short = 'v', long = "verbose")]
     verbose: Option<bool>,
 }
 
-#[derive(Debug, Subcommand)]
-enum Command {
-    #[clap(subcommand)]
-    Prices (PriceCommands),
-}
-
-fn parse_resource_str(resource_str: &str) -> Result<Resource, String> {
-    if let Some((resource, exchange)) = resource_str.split_once('.') {
-        Ok(Resource::new(exchange, resource))
-    } else {
-        Err(format!("Invalid resource string: {}", resource_str))
+impl Cli {
+    pub fn new() -> Self {
+        Self::parse()
     }
-}
 
-fn parse_date_str(date_str: &str) -> Result<chrono::NaiveDate, String> {
-    eod_date_format::from_str(date_str).map_err(|err| err.to_string())
-}
-
-#[derive(Debug, Subcommand)]
-enum PriceCommands {
-    Fetch { 
-        #[clap(value_parser(clap::builder::ValueParser::new(parse_resource_str)))]
-        resources: Vec<Resource>,
-
-        // resource: Resource,
-        // api_key: String,
-
-        #[clap(short = 's', long = "start-date", value_parser(clap::builder::ValueParser::new(parse_date_str)))]
-        start_date: Option<chrono::NaiveDate>,
-        #[clap(short = 'e', long = "end-date", value_parser(clap::builder::ValueParser::new(parse_date_str)))]
-        end_date: Option<chrono::NaiveDate>,
-    },
-}
-
-// #[derive(Debug, Deserialize)]
-// struct SnapShot {
-//     id: usize,
-//     resourceId: usize,
-//     date: chrono::DateTime<chrono::Utc>,
-//     price: f32,
-//     quantity: usize,
-//     cost: f32,
-//     payments: f32,
-// }
-
-
-const DEFAULT_RESOURCES: [&'static str; 1] = ["MCD.US"];
-
-fn main() {
-    dotenv::dotenv().ok();
-
-    let args = Cli::parse();
-    // println!("Args: {:?}", args);
-
-    match args.command {
-        Some(Command::Prices(PriceCommands::Fetch { mut resources, start_date, end_date })) => {
-
-            let api_key = std::env::var("API_KEY").expect("API_KEY environment variable not set");
-            //Some(chrono::NaiveDate::from_ymd(2022, 01, 01))
-            if resources.is_empty() {
-                for resource_str in DEFAULT_RESOURCES {
-                    resources.push(parse_resource_str(resource_str).unwrap())
-                }
-            }
-
-            for resource in resources {
-                let prices = resource.fetch_prices(&api_key, start_date, end_date).unwrap();
-                let max_price = prices.iter().max_by(|a, b| a.cmp_price(&b)).unwrap();
-                println!("Max EOD price of ${:.2} occurred on {} which was the max of {} data points.", max_price.close(), max_price.date(), prices.len());
-            }
-            
-            // // Sort by date ascending
-            // data.sort_by(|a, b| a.cmp_date(&b));
-            // println!("{:?}", data.first());
-            // println!("{:?}", data.last());
-            
-            // Find max price
-        },
-        None => {
-            println!("No command");
+    pub async fn execute(self, db: &sqlx::PgPool) -> Result<(), Box<dyn std::error::Error>> {
+        match self.command {
+            Some(command) => command.execute(db).await,
+            None => Err("Unknown command".to_string())?,
         }
     }
-
-    // let resp = reqwest::blocking::get("http://localhost:3000/api/v1/snapshots/2").unwrap();
-    // let snapshots = resp.json::<Vec<SnapShot>>().unwrap();
-    // for snap in snapshots {
-    //     println!("{:?} {:?}", snap.date, snap.price);
-    // }
 }
+
+async fn get_db() -> sqlx::Result<sqlx::PgPool> {
+    use sqlx::PgPool;
+
+    let url = std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable not set");
+    let db = PgPool::connect(&url).await?;
+
+    Ok(db)
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenv::dotenv().ok();
+    
+    let db = get_db().await?;
+    
+    Cli::new().execute(&db).await?;
+    
+    
+    Ok(())
+}
+
