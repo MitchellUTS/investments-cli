@@ -64,17 +64,18 @@ enum PriceCommands {
 // }
 
 
-
-const DEMO_API_KEY: &'static str = "OeAFFmMliFG5orCUuwAKQ8l4WWFQ67YX";
 const DEFAULT_RESOURCES: [&'static str; 1] = ["MCD.US"];
-// const DEFAULT_RESOURCES: Vec<Resource> = DEFAULT_RESOURCED_STR.iter().map(|s| parse_resource_str(s).unwrap()).collect();
 
 fn main() {
+    dotenv::dotenv().ok();
+
     let args = Cli::parse();
     // println!("Args: {:?}", args);
 
     match args.command {
         Some(Command::Prices(PriceCommands::Fetch { mut resources, start_date, end_date })) => {
+
+            let api_key = std::env::var("API_KEY").expect("API_KEY environment variable not set");
             //Some(chrono::NaiveDate::from_ymd(2022, 01, 01))
             if resources.is_empty() {
                 for resource_str in DEFAULT_RESOURCES {
@@ -83,9 +84,9 @@ fn main() {
             }
 
             for resource in resources {
-                let prices = resource.fetch_prices(DEMO_API_KEY, start_date, end_date).unwrap();
+                let prices = resource.fetch_prices(&api_key, start_date, end_date).unwrap();
                 let max_price = prices.iter().max_by(|a, b| a.cmp_price(&b)).unwrap();
-                println!("Max EOD Price: {:?}", max_price);
+                println!("Max EOD price of ${:.2} occurred on {} which was the max of {} data points.", max_price.close(), max_price.date(), prices.len());
             }
             
             // // Sort by date ascending

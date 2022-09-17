@@ -13,6 +13,14 @@ impl Resource {
         }
     }
 
+    pub fn exchange(&self) -> &String {
+        &self.exchange
+    }
+
+    pub fn symbol(&self) -> &String {
+        &self.symbol
+    }
+
     pub fn fetch_prices(self, api_key: &str, start_date: Option<chrono::NaiveDate>, end_date: Option<chrono::NaiveDate>) ->  reqwest::Result<Vec<EndOfDayRecord>> {
         let mut query_params: Vec<(&str, String)> = vec![
             ("fmt", String::from("json")),
@@ -51,6 +59,34 @@ pub struct EndOfDayRecord {
     volume: usize,
 }
 impl EndOfDayRecord {
+    pub fn date(&self) -> &chrono::NaiveDate {
+        &self.date
+    }
+
+    pub fn open(&self) -> f32 {
+        self.open
+    }
+
+    pub fn high(&self) -> f32 {
+        self.high
+    }
+
+    pub fn low(&self) -> f32 {
+        self.low
+    }
+
+    pub fn close(&self) -> f32 {
+        self.close
+    }
+
+    pub fn adjusted_close(&self) -> f32 {
+        self.adjusted_close
+    }
+
+    pub fn volume(&self) -> usize {
+        self.volume
+    }
+
     pub fn cmp_date(&self, other: &Self) -> std::cmp::Ordering {
         self.date.cmp(&other.date)
     }
