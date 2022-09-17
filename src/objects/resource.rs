@@ -21,8 +21,8 @@ impl Resource {
             ("api_token", String::from(api_key)),
         ];
 
-        match start_date { Some(date) => query_params.push(("from", date.format(eod_date_format::FORMAT).to_string())), None => () };
-        match end_date   { Some(date) => query_params.push(("to",   date.format(eod_date_format::FORMAT).to_string())), None => () };
+        match start_date { Some(date) => query_params.push(("from", eod_date_format::to_string(&date))), None => () };
+        match end_date   { Some(date) => query_params.push(("to",   eod_date_format::to_string(&date))), None => () };
 
         let url = format!("https://eodhistoricaldata.com/api/eod/{symbol}.{exchange}", 
             symbol = self.symbol,
@@ -50,12 +50,28 @@ pub struct EndOfDayRecord {
     adjusted_close: f32,
     volume: usize,
 }
+impl EndOfDayRecord {
+    pub fn cmp_date(&self, other: &Self) -> std::cmp::Ordering {
+        self.date.cmp(&other.date)
+    }
 
-mod eod_date_format {
-    use chrono::{NaiveDate};
+    pub fn cmp_price(&self, other: &Self) -> std::cmp::Ordering {
+        self.close.partial_cmp(&other.close).unwrap()
+    }
+}
+
+pub mod eod_date_format {
+    use chrono::{NaiveDate, ParseResult};
     use serde::{self, Deserialize, Serializer, Deserializer};
-
+    
     pub(crate) const FORMAT: &'static str = "%Y-%m-%d";
+    
+    pub fn from_str(date_str: &str) -> ParseResult<NaiveDate> {
+        NaiveDate::parse_from_str(date_str, FORMAT)
+    }
+    pub fn to_string(date: &NaiveDate) -> String {
+        date.format(FORMAT).to_string()
+    }
 
     pub fn serialize<S>(
         date: &NaiveDate,
@@ -64,7 +80,7 @@ mod eod_date_format {
     where
         S: Serializer,
     {
-        let s = format!("{}", date.format(FORMAT));
+        let s = format!("{}", to_string(date));
         serializer.serialize_str(&s)
     }
 
@@ -75,7 +91,7 @@ mod eod_date_format {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        NaiveDate::parse_from_str(&s, FORMAT)
+        from_str(&s)
             .map_err(serde::de::Error::custom)
     }
 }

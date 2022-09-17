@@ -1,7 +1,6 @@
 use clap::{Parser, Subcommand};
-use serde::{Serialize, Deserialize};
 
-use investments_cli::objects::resource::{*, self};
+use investments_cli::objects::resource::{*};
 
 #[derive(Debug, Parser)]
 struct Cli {
@@ -33,15 +32,23 @@ fn parse_resource_str(resource_str: &str) -> Result<Resource, String> {
     }
 }
 
+fn parse_date_str(date_str: &str) -> Result<chrono::NaiveDate, String> {
+    eod_date_format::from_str(date_str).map_err(|err| err.to_string())
+}
+
 #[derive(Debug, Subcommand)]
 enum PriceCommands {
     Fetch { 
         #[clap(value_parser(clap::builder::ValueParser::new(parse_resource_str)))]
-        resource: Resource,
+        resources: Vec<Resource>,
+
         // resource: Resource,
         // api_key: String,
-        // start_date: Option<chrono::NaiveDate>,
-        // end_date: Option<chrono::NaiveDate>,
+
+        #[clap(short = 's', long = "start-date", value_parser(clap::builder::ValueParser::new(parse_date_str)))]
+        start_date: Option<chrono::NaiveDate>,
+        #[clap(short = 'e', long = "end-date", value_parser(clap::builder::ValueParser::new(parse_date_str)))]
+        end_date: Option<chrono::NaiveDate>,
     },
 }
 
@@ -58,16 +65,35 @@ enum PriceCommands {
 
 
 
-
+const DEMO_API_KEY: &'static str = "OeAFFmMliFG5orCUuwAKQ8l4WWFQ67YX";
+const DEFAULT_RESOURCES: [&'static str; 1] = ["MCD.US"];
+// const DEFAULT_RESOURCES: Vec<Resource> = DEFAULT_RESOURCED_STR.iter().map(|s| parse_resource_str(s).unwrap()).collect();
 
 fn main() {
     let args = Cli::parse();
     // println!("Args: {:?}", args);
 
     match args.command {
-        Some(Command::Prices(PriceCommands::Fetch { resource })) => {
-            let data = resource.fetch_prices("OeAFFmMliFG5orCUuwAKQ8l4WWFQ67YX", Some(chrono::NaiveDate::from_ymd(2022, 01, 01)), None).unwrap();
-            println!("Data: {:?}", data.len());
+        Some(Command::Prices(PriceCommands::Fetch { mut resources, start_date, end_date })) => {
+            //Some(chrono::NaiveDate::from_ymd(2022, 01, 01))
+            if resources.is_empty() {
+                for resource_str in DEFAULT_RESOURCES {
+                    resources.push(parse_resource_str(resource_str).unwrap())
+                }
+            }
+
+            for resource in resources {
+                let prices = resource.fetch_prices(DEMO_API_KEY, start_date, end_date).unwrap();
+                let max_price = prices.iter().max_by(|a, b| a.cmp_price(&b)).unwrap();
+                println!("Max EOD Price: {:?}", max_price);
+            }
+            
+            // // Sort by date ascending
+            // data.sort_by(|a, b| a.cmp_date(&b));
+            // println!("{:?}", data.first());
+            // println!("{:?}", data.last());
+            
+            // Find max price
         },
         None => {
             println!("No command");
